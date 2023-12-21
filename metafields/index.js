@@ -83,7 +83,7 @@ const fs = require("fs");
 const csv = require("csv-parser");
 
 const filePath = "magento_products.csv";
-const outputFilePath = "Default.csv";
+const outputFilePath = "all.csv";
 
 let push = true;
 let count = 0;
@@ -102,7 +102,7 @@ fs.createReadStream(filePath)
     if (
       data.name !== "" &&
       data.visibility == 4 &&
-      data._attribute_set == "Default"
+      data._attribute_set !== ""
     ) {
       currentKey = data._custom_option_title.trim();
 
@@ -171,16 +171,17 @@ fs.createReadStream(filePath)
   .on("end", () => {
     console.log(productsObj);
 
-    let csv = "name,color,description,Tassel Color 1,Tassel Color 2,Tassel Color 3";
+    // let csv = "name,color,description,Tassel Color 1,Tassel Color 2,Tassel Color 3";
+    let csv = "name,color,description";
 
     Object.entries(productsObj).forEach(([key, values]) => {
       const row = [
         values.name,
         values["color"],
         values["desc"],
-        values["Tassel Color 1"]?.join(";"),
-        values["Tassel Color 2"]?.join(";"),
-        values["Tassel Color 3"]?.join(";"),
+        // values["Tassel Color 1"]?.join(";"),
+        // values["Tassel Color 2"]?.join(";"),
+        // values["Tassel Color 3"]?.join(";"),
       ].join(",");
 
       csv += "\n" + row;

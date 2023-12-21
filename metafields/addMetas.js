@@ -1,7 +1,7 @@
 const fs = require("fs");
 const csv = require("csv-parser");
 
-const filePath = "output.csv";
+const filePath = "all.csv";
 const failedRequestsFilePath = "failed_requests.txt";
 const results = [];
 let count = 0;
@@ -14,22 +14,24 @@ fs.createReadStream(filePath)
   })
   .on("end", () => {
     processRows(results);
-    console.log("data",results)
+    console.log("data", results);
   });
 
 function processRows(rows) {
   // Process each row with a delay
-  rows.reduce((accumulator, row) => {
-    return accumulator.then(() => {
-      return processRow(row);
+  rows
+    .reduce((accumulator, row) => {
+      return accumulator.then(() => {
+        return processRow(row);
+      });
+    }, Promise.resolve())
+    .then(() => {
+      // Save failed requests to a text file
+      if (failedRequests.length > 0) {
+        fs.writeFileSync(failedRequestsFilePath, failedRequests.join("\n"));
+        console.log(`Failed requests saved to ${failedRequestsFilePath}`);
+      }
     });
-  }, Promise.resolve()).then(() => {
-    // Save failed requests to a text file
-    if (failedRequests.length > 0) {
-      fs.writeFileSync(failedRequestsFilePath, failedRequests.join('\n'));
-      console.log(`Failed requests saved to ${failedRequestsFilePath}`);
-    }
-  });
 }
 
 function processRow(row) {
@@ -59,16 +61,25 @@ function processRow(row) {
         // console.log(result)
 
         if (existingProducts.length > 0) {
-          if (result.products[0].title.trim() == row.name.replace("-", ",").trim()) {
+          if (
+            result.products[0].title.trim() == row.name.replace("-", ",").trim()
+          ) {
             // if (result.products[0].title.trim() == row.name.trim()) {
-              console.log(result.products[0].title)
+            console.log(result.products[0].title);
             // const data = createParagraph(row.description.replaceAll("!",'"').replaceAll(';',','));
             // const data = row.TasselColor1.replaceAll(";",",");
-            const data = row.color ? row.color : " ";
+            const data = row.description;
             const name = row.name;
             addMetafields(result.products[0].id, data, name);
-          }else{
-            console.log("title not matcihng",'shopify:', result.products[0].title, 'vs', 'hamro:', row.name)
+          } else {
+            console.log(
+              "title not matcihng",
+              "shopify:",
+              result.products[0].title,
+              "vs",
+              "hamro:",
+              row.name
+            );
           }
         } else {
           console.log("Product not found");
@@ -125,20 +136,81 @@ const dynamicStructure = createParagraph(textObjects);
 
 console.log(JSON.stringify(dynamicStructure, null, 2));
 
-
 function addMetafields(productId, data, name) {
   const apiUrl = `https://graduationworld.myshopify.com/admin/api/2023-10/products/${productId}/metafields.json`;
+
+  const text = data;
+
+  const bulletPoints = text.split("&bull;").map((item) => item.trim());
+
+  let values;
+
+  if (bulletPoints.length === 1) {
+    values = bulletPoints.map((point) =>
+      // JSON.stringify
+      ({
+        type: "paragraph",
+        children: [
+          {
+            type: "text",
+            value: point,
+          },
+        ],
+      })
+    );
+  } else {
+    values = bulletPoints.map((point) =>
+      // JSON.stringify
+      ({
+        type: "list-item",
+        children: [
+          {
+            type: "text",
+            value: point,
+          },
+        ],
+      })
+    );
+  }
+
+
+  // var datas = JSON.stringify({
+  //   type: "root",
+  //   children: [
+  //     {
+  //       listType: "unordered",
+  //       type: "list",
+  //       children: values,
+  //     },
+  //   ],
+  // });
+
+
+  var datas = {
+    type: "root",
+    children: [
+      {
+        listType: "unordered",
+        type: "list",
+        children: values,
+      },
+    ],
+  };
+
 
   var raw = JSON.stringify({
     metafield: {
       namespace: "custom",
-      key: "color_",
-      value: data,
-      type: "single_line_text_field",
+      key: "products_features",
+      value: JSON.stringify(datas),
+      type: "rich_text_field",
       owner_id: productId,
       owner_resource: "product",
     },
   });
+
+
+  // console.log('raw', raw);
 
   fetch(apiUrl, {
     method: "POST",
@@ -151,8 +223,8 @@ function addMetafields(productId, data, name) {
     .then((response) => {
       if (!response.ok) {
         failedRequests.push(name);
+        console.log('response   body', JSON.stringify(response))
         throw new Error(`HTTP error! Status: ${response.status}`);
-
       }
       return response.json();
     })
